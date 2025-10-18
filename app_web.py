@@ -87,12 +87,14 @@ HTML = """
             clear: both;
         }
         .user {
-            background-color: #87CEFA;
+            background-color: #87CEFA;  /* bleu clair pour toi */
             float: right;
+            color: black;
         }
         .bot {
-            background-color: #90EE90;
+            background-color: #1E3A8A;  /* bleu foncé pour l'IA */
             float: left;
+            color: white;
         }
         footer {
             text-align: center;
@@ -143,6 +145,8 @@ def home():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
 
 
 
