@@ -11,7 +11,7 @@ BASE_MEMORY = [
     {"question": "bonjour", "answer": "Bonjour ! Comment vas-tu ?"},
     {"question": "salut", "answer": "Salut ! Ça va ?"},
     {"question": "ça va", "answer": "Super ! Et toi ?"},
-    {"question": "comment tu t'appelles", "answer": "Je suis ton IA personnelle !"},
+    {"question": "comment tu t'appelles", "answer": "Je suis ton IA personnelle, George !"},
 ]
 
 # --- Fonctions mémoire ---
@@ -113,6 +113,8 @@ def home():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
+
 
 
 
