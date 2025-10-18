@@ -8,11 +8,15 @@ HTML = """
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>George l'IA</title>
+    <title>Mon IA</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #1E1E2F;
+            /* Image de fond */
+            background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
             color: #FFFFFF;
             display: flex;
             justify-content: center;
@@ -20,7 +24,7 @@ HTML = """
             min-height: 100vh;
         }
         .chat-container {
-            background-color: #2E2E3E;
+            background-color: rgba(46,46,62,0.85); /* Fond semi-transparent pour lire le texte */
             padding: 20px;
             border-radius: 15px;
             width: 90%;
@@ -65,7 +69,7 @@ HTML = """
 </head>
 <body>
     <div class="chat-container">
-        <h1>George</h1>
+        <h1>Mon IA</h1>
         <div class="chat-box">
             {% if question %}
                 <p class="user"><b>Vous :</b> {{ question }}</p>
@@ -92,10 +96,12 @@ def home():
         question = request.form["question"]
         # Appelle ici ta fonction IA réelle
         # response = repondre(question)
-        response = f"L'IA répond à : {question}"
+        response = f"L'IA répond à : {question}"  # temporaire pour tester
     return render_template_string(HTML, response=response, question=question)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+
 
