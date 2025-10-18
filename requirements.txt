@@ -1,5 +1,7 @@
 openai>=1.0.0
 tqdm
+Flask==2.3.3
 python-dotenv
-Flask==2.3.4
+
+
 
