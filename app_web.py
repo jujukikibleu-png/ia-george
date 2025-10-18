@@ -1,150 +1,127 @@
-from flask import Flask, request, render_template_string
-import json
-import os
+from flask import Flask, request, render_template_string, session
+from flask_session import Session
 
-# --- Mémoire --- #
-MEMORY_FILE = "memory.json"
-
-base_memory = [
-    {"question": "bonjour", "answer": "Bonjour ! Comment vas-tu ?"},
-    {"question": "salut", "answer": "Salut ! Comment ça va ?"},
-    {"question": "comment vas-tu", "answer": "Je vais bien, merci ! Et toi ?"},
-    {"question": "ça va", "answer": "Ça va très bien, merci ! Et toi ?"},
-    {"question": "merci", "answer": "Avec plaisir !"},
-    {"question": "au revoir", "answer": "Au revoir ! À bientôt !"}
-]
-
-def load_memory():
-    if os.path.exists(MEMORY_FILE):
-        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    else:
-        return []
-
-def save_memory_entry(question, answer):
-    memory = load_memory()
-    memory.append({"question": question.lower(), "answer": answer})
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(memory, f, ensure_ascii=False, indent=2)
-
-def get_memory():
-    return base_memory + load_memory()
-
-def repondre(question):
-    question_lower = question.lower()
-    for item in get_memory():
-        if item["question"] in question_lower or question_lower in item["question"]:
-            return item["answer"]
-    answer = f"Je ne connais pas encore cette question, mais je m'en souviendrai !"
-    save_memory_entry(question, answer)
-    return answer
-
-# --- Flask --- #
+# Crée l'instance Flask
 app = Flask(__name__)
 
+# Configurer les sessions côté serveur (mémoire)
+app.config["SESSION_TYPE"] = "filesystem"
+app.secret_key = "une_clef_tres_secrete_pour_la_session"
+Session(app)
+
+# Historique simple de réponses connues
+default_responses = {
+    "bonjour": "Bonjour ! Comment vas-tu ?",
+    "salut": "Salut ! Ça va ?",
+    "ça va": "Super ! Et toi ?",
+    "comment tu t'appelles": "Je suis ton IA personnelle !",
+}
+
+# Fonction pour générer une réponse IA
+def repondre(question):
+    question_lower = question.lower()
+    # Cherche une réponse connue
+    if question_lower in default_responses:
+        return default_responses[question_lower]
+    # Sinon réponse générique
+    return f"L'IA répond à : {question}"
+
+# HTML avec style
 HTML = """
 <!doctype html>
 <html>
 <head>
-    <title>Chatbot</title>
-    <style>
-        body {
-            background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
-            background-size: cover;
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            padding-top: 50px;
-            color: white;
-        }
-        .chat-container {
-            background: rgba(0, 0, 0, 0.6);
-            padding: 20px;
-            border-radius: 15px;
-            width: 400px;
-            box-shadow: 0 0 10px black;
-        }
-        input[type=text] {
-            width: 80%;
-            padding: 10px;
-            margin: 10px 0;
-            border-radius: 20px;
-            border: none;
-        }
-        input[type=submit] {
-            padding: 10px 20px;
-            border-radius: 20px;
-            border: none;
-            cursor: pointer;
-            background-color: #4CAF50;
-            color: white;
-        }
-        .message {
-            padding: 10px 15px;
-            margin: 5px;
-            border-radius: 20px;
-            max-width: 80%;
-            clear: both;
-        }
-        .user {
-            background-color: #87CEFA;  /* bleu clair pour toi */
-            float: right;
-            color: black;
-        }
-        .bot {
-            background-color: #1E3A8A;  /* bleu foncé pour l'IA */
-            float: left;
-            color: white;
-        }
-        footer {
-            text-align: center;
-            font-size: 14px;
-            color: #fff;
-            margin-top: 20px;
-        }
-        .chat-box {
-            max-height: 300px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-        }
-    </style>
+<title>Chatbot</title>
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
+    background-size: cover;
+    background-attachment: fixed;
+}
+.container {
+    max-width: 600px;
+    margin: 50px auto;
+    background: rgba(255,255,255,0.8);
+    padding: 20px;
+    border-radius: 15px;
+}
+.bubble {
+    padding: 10px 15px;
+    border-radius: 15px;
+    margin: 10px 0;
+    display: inline-block;
+    max-width: 80%;
+}
+.user {
+    background-color: #1a73e8;
+    color: white;
+    align-self: flex-end;
+}
+.ai {
+    background-color: #0b3d91;
+    color: white;
+    align-self: flex-start;
+}
+.chat {
+    display: flex;
+    flex-direction: column;
+}
+footer {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #333;
+}
+input[type=text] {
+    width: 80%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+}
+input[type=submit] {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: none;
+    background-color: #1a73e8;
+    color: white;
+    cursor: pointer;
+}
+</style>
 </head>
 <body>
-    <div class="chat-container">
-        <h2>Mon IA</h2>
-        <div class="chat-box" id="chat-box">
-            {% for q, a in chat_history %}
-                <div class="message user">{{ q }}</div>
-                <div class="message bot">{{ a }}</div>
-            {% endfor %}
-        </div>
-        <form method="POST">
-            <input name="question" placeholder="Pose ta question" required>
-            <input type="submit" value="Envoyer">
-        </form>
-        <footer>Created by Jules Besson Vollaire</footer>
-    </div>
-    <script>
-        // Scroll automatique vers le dernier message
-        var chatBox = document.getElementById("chat-box");
-        chatBox.scrollTop = chatBox.scrollHeight;
-    </script>
+<div class="container">
+<h1>Mon IA</h1>
+<div class="chat">
+{% for q, a in chat_history %}
+    <div class="bubble user">{{ q }}</div>
+    <div class="bubble ai">{{ a }}</div>
+{% endfor %}
+</div>
+<form method="POST">
+    <input type="text" name="question" placeholder="Pose ta question" required>
+    <input type="submit" value="Envoyer">
+</form>
+<footer>Created by Jules Besson Vollaire</footer>
+</div>
 </body>
 </html>
 """
 
-chat_history = []
-
 @app.route("/", methods=["GET", "POST"])
 def home():
+    if "chat_history" not in session:
+        session["chat_history"] = []
     if request.method == "POST":
         question = request.form["question"]
         answer = repondre(question)
-        chat_history.append((question, answer))
-    return render_template_string(HTML, chat_history=chat_history)
+        session["chat_history"].append((question, answer))
+    return render_template_string(HTML, chat_history=session["chat_history"])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
