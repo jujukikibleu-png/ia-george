@@ -41,7 +41,7 @@ def repondre(question):
         if question_lower in item["question"].lower() or item["question"].lower() in question_lower:
             return item["answer"]
     # Sinon, réponse générique et on mémorise
-    answer = f"George": {question}"
+    answer = f"L'IA répond à": {question}"
     save_memory(question, answer)
     return answerHTML = """
 <!doctype html>
@@ -127,6 +127,7 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
