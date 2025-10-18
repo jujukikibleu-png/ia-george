@@ -47,7 +47,6 @@ def add_global_fact(subject, predicate, obj, raw_text):
     k = load_global_knowledge()
     subj_n = normalize(subject)
     obj_n = normalize(obj)
-    # simple duplicate check
     for t in k:
         if t.get("subject_norm")==subj_n and t.get("object_norm")==obj_n and t.get("predicate")==predicate:
             return
@@ -82,7 +81,6 @@ def add_user_fact(user_id, subject, predicate, obj, raw_text):
     mem = load_user_memory(user_id)
     subj_n = normalize(subject)
     obj_n = normalize(obj)
-    # évite duplications simples
     for t in mem:
         if t.get("subject_norm")==subj_n and t.get("object_norm")==obj_n and t.get("predicate")==predicate:
             return
@@ -98,42 +96,32 @@ def add_user_fact(user_id, subject, predicate, obj, raw_text):
     save_user_memory(user_id, mem)
 
 # =============== Détection et parsing de faits simples ===============
-# Patterns français / anglais très basiques
 FACT_PATTERNS = [
-    # français: "X est Y", "Le soleil est une étoile"
     r"^\s*(?P<subj>.+?)\s+est\s+(?P<obj>.+?)\s*$",
     r"^\s*(?P<subj>.+?)\s+sont\s+(?P<obj>.+?)\s*$",
-    # anglais:
     r"^\s*(?P<subj>.+?)\s+is\s+(?P<obj>.+?)\s*$",
     r"^\s*(?P<subj>.+?)\s+are\s+(?P<obj>.+?)\s*$",
-    # française variante: "X : Y" (ex: "Une étoile : Tout ce qui brille...")
     r"^\s*(?P<subj>.+?)\s*[:\-—]\s*(?P<obj>.+?)\s*$"
 ]
 
 def extract_fact(text):
-    """
-    Si text contient un fait simple, retourne (subject, predicate, object), sinon None.
-    predicate is a string like 'est' or 'is' or ':' etc.
-    """
     t = text.strip()
     for pat in FACT_PATTERNS:
         m = re.match(pat, t, flags=re.IGNORECASE)
         if m:
             subj = m.group("subj").strip()
             obj = m.group("obj").strip()
-            # determine predicate from pattern
             if re.search(r"\b(est|sont)\b", m.group(0), flags=re.IGNORECASE):
                 pred = "est"
             elif re.search(r"\b(is|are)\b", m.group(0), flags=re.IGNORECASE):
                 pred = "is"
             else:
-                pred = ":"  # fallback
-            # Do not accept too short subjects or objects
+                pred = ":"
             if len(normalize(subj)) >= 1 and len(normalize(obj)) >= 1:
                 return subj, pred, obj
     return None
 
-# =============== Petite heuristique pour détecter info "personnelle" ===============
+# =============== Détection infos perso ===============
 PERSONAL_KEYWORDS = ["mon ", "ma ", "mes ", "je suis", "moi ", "monnom", "mon nom", "adresse", "né le", "née le", "mon âge", "je m'appelle"]
 
 def looks_personal(text):
@@ -141,53 +129,40 @@ def looks_personal(text):
     for kw in PERSONAL_KEYWORDS:
         if kw in lo:
             return True
-    # "je suis <nom>" -> personnel
     if re.search(r"\bje suis\b", lo):
         return True
     return False
 
-# =============== Recherche intelligente dans la connaissance ===============
+# =============== Recherche dans la connaissance ===============
 def find_in_triples(query_norm, triples):
-    """Retourne la meilleure correspondance (triple) ou None.
-       Matching sur subject_norm OR object_norm, ou token overlap."""
     q = query_norm
-    # 1) exact subject or object match
     for t in triples:
         if t.get("subject_norm") == q or t.get("object_norm") == q:
             return t
-    # 2) token overlap: check if all words of triple.subject in query
     for t in triples:
         subj_words = set(t.get("subject_norm","").split())
         if subj_words and subj_words.issubset(set(q.split())):
             return t
-    # 3) partial overlap: any word match
     for t in triples:
         if any(w in q.split() for w in t.get("subject_norm","").split()):
             return t
     return None
 
 def query_knowledge(query_text, user_id=None):
-    """Cherche d'abord dans la mémoire utilisateur (si user_id fourni), puis globalement.
-       Retourne une phrase de réponse si trouvé, sinon None."""
     q_norm = normalize(query_text)
-    # user memory first
     if user_id:
         utriples = load_user_memory(user_id)
         found = find_in_triples(q_norm, utriples)
         if found:
-            # si la triple trouvée a object qui est lui-même sujet d'une autre triple, on peut enchaîner
             obj_n = found.get("object_norm")
-            # chercher explication de object dans global knowledge
             g = load_global_knowledge()
             follow = find_in_triples(obj_n, g)
             if follow:
                 return f"{found['object']} — {follow['object'] if 'object' in follow else ''}".strip()
             return f"{found['object']}"
-    # global knowledge
     g = load_global_knowledge()
     found = find_in_triples(q_norm, g)
     if found:
-        # try to expand: if object refers to another triple, include
         obj_n = found.get("object_norm")
         follow = find_in_triples(obj_n, g)
         if follow:
@@ -195,32 +170,21 @@ def query_knowledge(query_text, user_id=None):
         return found['object']
     return None
 
-# =============== Réponse générale et apprentissage avancé ===============
+# =============== Réponse & apprentissage ===============
 def answer_and_learn(text, user_id):
-    """
-    - si question (c'est quoi, qu'est-ce que, what is), cherche et répond
-    - si déclaration factuelle detectée (X est Y), enregistre (global ou user) selon heuristique
-    - sinon cherche correspondance dans knowledge, si rien -> mémorise comme question (avec generic answer)
-    """
     t = text.strip()
     t_norm = normalize(t)
-
-    # 1) check question patterns (FR/EN)
-    # exemples: "C'est quoi X ?", "Qu'est-ce que X ?", "What is X?"
-    q_match = re.match(r"(?i)^\s*(c'est quoi|quest ce que|qu'est ce que|qu'est-ce que|qu'est-ce qu'|qu'est-ce que|what is|what's)\s*(?P<target>.+?)\s*\??\s*$", t)
+    q_match = re.match(r"(?i)^\s*(c'est quoi|quest ce que|qu'est ce que|qu'est-ce que|what is|what's)\s*(?P<target>.+?)\s*\??\s*$", t)
     if q_match:
         target = q_match.group("target")
-        # try direct query of knowledge for target
         found = query_knowledge(target, user_id)
         if found:
             return found
-        # else try searching for target as-is
         found2 = query_knowledge(t, user_id)
         if found2:
             return found2
         return "Désolé, je ne connais pas encore la réponse précise à ça — apprends-la moi !"
 
-    # Another question phrasing: "C'est quoi une étoile?" or "C'est quoi le soleil?"
     q2 = re.match(r"(?i)^\s*(?:c'est quoi|c'est|definir|définis|définition de)\s*(?P<target>.+?)\s*\??\s*$", t)
     if q2:
         target = q2.group("target")
@@ -229,11 +193,9 @@ def answer_and_learn(text, user_id):
             return found
         return "Je ne connais pas encore ça. Peux-tu me dire ce que c'est ? (ex: 'X est Y')"
 
-    # 2) Try detect declarative fact: "X est Y", "X : Y", "X is Y"
     fact = extract_fact(t)
     if fact:
         subj, pred, obj = fact
-        # decide personal or global
         if looks_personal(t):
             add_user_fact(user_id, subj, pred, obj, t)
             return f"Ok, j'ai noté ça pour toi (privé). «{subj}» = «{obj}»."
@@ -241,13 +203,10 @@ def answer_and_learn(text, user_id):
             add_global_fact(subj, pred, obj, t)
             return f"Merci — j'ai appris : «{subj}» {pred} «{obj}»."
 
-    # 3) If not a question nor a parsed fact, try to find something similar in knowledge
     found = query_knowledge(t, user_id)
     if found:
         return found
 
-    # 4) fallback: we don't know -> ask user to rephrase as fact or give generic reply and record as unknown
-    # Save as "unknown" global question so future might be matched (we store as question->generic answer)
     add_global_fact(t, "is_question", "unknown", t)
     return "Je ne connais pas encore cette question. Tu peux m'expliquer (ex: 'X est Y') ou je m'en souviendrai comme question."
 
@@ -257,7 +216,7 @@ HTML = """
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mon IA - avancée</title>
+<title>Mon IA</title>
 {% raw %}
 <style>
 body {
@@ -285,7 +244,6 @@ body {
     overflow-y: auto;
     margin-bottom: 12px;
 }
-/* bulles */
 .msg { display: block; clear: both; padding: 10px 14px; margin: 8px 0; border-radius: 18px; max-width: 80%; }
 .user { background: #87CEFA; color: #000; float: right; text-align: right; }
 .ai { background: #0b3d91; color: #fff; float: left; text-align: left; }
@@ -300,7 +258,7 @@ small.hint { color:#ddd; font-size:0.9em; display:block; text-align:center; marg
 <body>
 <div class="container">
     <div class="header">
-        <h2>Mon IA — Version avancée</h2>
+        <h2>Mon IA</h2>
         <small class="hint">Tu peux enseigner des faits : "Le soleil est une étoile". Pose ensuite "C'est quoi le soleil ?" </small>
     </div>
 
@@ -323,7 +281,6 @@ small.hint { color:#ddd; font-size:0.9em; display:block; text-align:center; marg
 </div>
 
 <script>
-// scroll to bottom
 const chatbox = document.getElementById('chatbox');
 chatbox.scrollTop = chatbox.scrollHeight;
 </script>
@@ -334,7 +291,6 @@ chatbox.scrollTop = chatbox.scrollHeight;
 # =============== Route principale ===============
 @app.route("/", methods=["GET", "POST"])
 def home():
-    # initialise user
     if "user_id" not in session:
         session["user_id"] = str(uuid.uuid4())
         session["chat"] = []
@@ -344,9 +300,7 @@ def home():
     if request.method == "POST":
         text = request.form.get("question", "").strip()
         if text:
-            # add user message
             chat.append({"sender": "user", "text": text})
-            # compute answer (and possibly learn)
             ans = answer_and_learn(text, user_id)
             chat.append({"sender": "ai", "text": ans})
             session["chat"] = chat
@@ -355,9 +309,10 @@ def home():
 
 # =============== Run ===============
 if __name__ == "__main__":
-    # si Render ou environnement définit PORT, tu peux utiliser:
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
+
 
 
 
