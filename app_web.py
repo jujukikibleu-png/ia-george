@@ -1,133 +1,115 @@
-import os
-import json
 from flask import Flask, request, render_template_string
+import json
+import os
 
-app = Flask(__name__)
-data_file = "memory.json"
+# --- Mémoire --- #
+MEMORY_FILE = "memory.json"
 
 # Mémoire de base
 base_memory = [
-    {"question": "bonjour", "answer": "Bonjour ! Comment vas-tu aujourd'hui ?"},
+    {"question": "bonjour", "answer": "Bonjour ! Comment vas-tu ?"},
     {"question": "salut", "answer": "Salut ! Comment ça va ?"},
-    {"question": "ça va", "answer": "Je vais bien, merci ! Et toi ?"},
+    {"question": "comment vas-tu", "answer": "Je vais bien, merci ! Et toi ?"},
+    {"question": "ça va", "answer": "Ça va très bien, merci ! Et toi ?"},
     {"question": "merci", "answer": "Avec plaisir !"},
     {"question": "au revoir", "answer": "Au revoir ! À bientôt !"}
 ]
 
-# Initialiser memory.json si vide
-if not os.path.exists(data_file):
-    with open(data_file, "w", encoding="utf-8") as f:
-        json.dump(base_memory, f, ensure_ascii=False, indent=2)
-
-# Fonction pour récupérer la mémoire
-def get_memory():
-    try:
-        with open(data_file, "r", encoding="utf-8") as f:
+# Charge la mémoire depuis le fichier
+def load_memory():
+    if os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except FileNotFoundError:
+    else:
         return []
 
-# Fonction pour sauvegarder une info
-def save_memory(question, answer):
-    memory = get_memory()
-    memory.append({"question": question, "answer": answer})
-    with open(data_file, "w", encoding="utf-8") as f:
+# Sauvegarde la mémoire dans le fichier
+def save_memory_entry(question, answer):
+    memory = load_memory()
+    memory.append({"question": question.lower(), "answer": answer})
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         json.dump(memory, f, ensure_ascii=False, indent=2)
 
-# Fonction qui répond intelligemment
+# Retourne toute la mémoire combinée (base + utilisateur)
+def get_memory():
+    return base_memory + load_memory()
+
+# Fonction pour générer une réponse
 def repondre(question):
     question_lower = question.lower()
     for item in get_memory():
-        if question_lower in item["question"].lower() or item["question"].lower() in question_lower:
+        if item["question"] in question_lower or question_lower in item["question"]:
             return item["answer"]
-    # Sinon, réponse générique et on mémorise
-    answer = f"L'IA répond à : {question}"
-    save_memory(question, answer)
+    # Si inconnu, mémorise et répond génériquement
+    answer = f"Je ne connais pas encore cette question, mais je m'en souviendrai !"
+    save_memory_entry(question, answer)
     return answer
+
+# --- Flask --- #
+app = Flask(__name__)
+
 HTML = """
 <!doctype html>
-<html lang="fr">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Mon IA</title>
-<style>
-body {
-    font-family: Arial, sans-serif;
-    background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    color: #FFFFFF;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-}
-.chat-container {
-    background-color: rgba(46,46,62,0.85);
-    padding: 20px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 500px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-}
-h1 { text-align: center; color: #00FFFF; }
-form { display: flex; gap: 10px; margin-top: 10px; }
-input[type="text"] { flex: 1; padding: 10px; border-radius: 10px; border: none; }
-input[type="submit"], button {
-    padding: 10px 15px;
-    border: none;
-    border-radius: 10px;
-    background-color: #00FFFF;
-    color: #000;
-    cursor: pointer;
-    font-weight: bold;
-}
-.chat-box {
-    background-color: #1B1B2F;
-    padding: 10px;
-    border-radius: 10px;
-    margin-top: 15px;
-    max-height: 300px;
-    overflow-y: auto;
-}
-.user { color: #FFD700; }
-.ai { color: #00FFFF; }
-</style>
+    <title>Chatbot</title>
+    <style>
+        body {
+            background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
+            background-size: cover;
+            font-family: Arial, sans-serif;
+            color: white;
+            text-align: center;
+            padding-top: 50px;
+        }
+        input[type=text] {
+            width: 300px;
+            padding: 10px;
+            margin: 10px;
+        }
+        input[type=submit] {
+            padding: 10px 20px;
+            cursor: pointer;
+        }
+        p {
+            font-size: 18px;
+        }
+        form {
+            margin-bottom: 30px;
+        }
+        footer {
+            position: fixed;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: #fff;
+        }
+    </style>
 </head>
 <body>
-<div class="chat-container">
-<h1>Mon IA</h1>
-<div class="chat-box">
-    {% if question %}
-        <p class="user"><b>Vous :</b> {{ question }}</p>
-        <p class="ai"><b>IA :</b> {{ response }}</p>
-    {% endif %}
-</div>
-<form method="POST">
-    <input name="question" placeholder="Pose ta question" required>
-    <input type="submit" value="Envoyer">
-</form>
-<form method="GET">
-    <button>Effacer la conversation</button>
-</form>
-</div>
+    <h1>Mon IA</h1>
+    <form method="POST">
+        <input name="question" placeholder="Pose ta question" required>
+        <input type="submit" value="Envoyer">
+    </form>
+    <p>{{ response }}</p>
+    <footer>Created by Jules Besson Vollaire</footer>
 </body>
 </html>
 """
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     response = ""
-    question = ""
     if request.method == "POST":
         question = request.form["question"]
-        response = repondre(question)  # réponse intelligente
-    return render_template_string(HTML, response=response, question=question)
+        response = repondre(question)
+    return render_template_string(HTML, response=response)
 
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
