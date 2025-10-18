@@ -1,7 +1,40 @@
 from flask import Flask, request, render_template_string
 import os
+import json
 
 app = Flask(__name__)
+
+data_file = "memory.json"  # fichier pour stocker la mémoire de l'IA
+
+# Fonction pour sauvegarder une nouvelle info
+def save_memory(question, answer):
+    try:
+        with open(data_file, "r", encoding="utf-8") as f:
+            memory = json.load(f)
+    except FileNotFoundError:
+        memory = []
+    memory.append({"question": question, "answer": answer})
+    with open(data_file, "w", encoding="utf-8") as f:
+        json.dump(memory, f, ensure_ascii=False, indent=2)
+
+# Fonction pour récupérer toute la mémoire
+def get_memory():
+    try:
+        with open(data_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return []
+
+# Fonction de réponse intelligente
+def repondre(question):
+    # Cherche une question similaire dans la mémoire
+    for item in get_memory():
+        if question.lower() in item["question"].lower():
+            return item["answer"]
+    # Si rien trouvé, génère une réponse par défaut
+    answer = f"L'IA répond à : {question}"
+    save_memory(question, answer)
+    return answer
 
 HTML = """
 <!doctype html>
@@ -12,7 +45,6 @@ HTML = """
     <style>
         body {
             font-family: Arial, sans-serif;
-            /* Image de fond */
             background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
             background-size: cover;
             background-position: center;
@@ -24,7 +56,7 @@ HTML = """
             min-height: 100vh;
         }
         .chat-container {
-            background-color: rgba(46,46,62,0.85); /* Fond semi-transparent pour lire le texte */
+            background-color: rgba(46,46,62,0.85);
             padding: 20px;
             border-radius: 15px;
             width: 90%;
@@ -94,14 +126,11 @@ def home():
     question = ""
     if request.method == "POST":
         question = request.form["question"]
-        # Appelle ici ta fonction IA réelle
-        # response = repondre(question)
-        response = f"L'IA répond à : {question}"  # temporaire pour tester
+        response = repondre(question)  # réponse intelligente
     return render_template_string(HTML, response=response, question=question)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
 
 
