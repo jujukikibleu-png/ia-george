@@ -41,14 +41,15 @@ def repondre(question):
         if question_lower in item["question"].lower() or item["question"].lower() in question_lower:
             return item["answer"]
     # Sinon, réponse générique et on mémorise
-    answer = f"L'IA répond à": {question}"
+    answer = f"L'IA répond à : {question}"
     save_memory(question, answer)
-    return answerHTML = """
+    return answer
+HTML = """
 <!doctype html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>George l'IA</title>
+<title>Mon IA</title>
 <style>
 body {
     font-family: Arial, sans-serif;
@@ -96,7 +97,7 @@ input[type="submit"], button {
 </head>
 <body>
 <div class="chat-container">
-<h1>L'IA George</h1>
+<h1>Mon IA</h1>
 <div class="chat-box">
     {% if question %}
         <p class="user"><b>Vous :</b> {{ question }}</p>
@@ -127,8 +128,6 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
 
 
 
