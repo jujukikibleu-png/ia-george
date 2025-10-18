@@ -5,7 +5,6 @@ import os
 # --- Mémoire --- #
 MEMORY_FILE = "memory.json"
 
-# Mémoire de base
 base_memory = [
     {"question": "bonjour", "answer": "Bonjour ! Comment vas-tu ?"},
     {"question": "salut", "answer": "Salut ! Comment ça va ?"},
@@ -15,7 +14,6 @@ base_memory = [
     {"question": "au revoir", "answer": "Au revoir ! À bientôt !"}
 ]
 
-# Charge la mémoire depuis le fichier
 def load_memory():
     if os.path.exists(MEMORY_FILE):
         with open(MEMORY_FILE, "r", encoding="utf-8") as f:
@@ -23,24 +21,20 @@ def load_memory():
     else:
         return []
 
-# Sauvegarde la mémoire dans le fichier
 def save_memory_entry(question, answer):
     memory = load_memory()
     memory.append({"question": question.lower(), "answer": answer})
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         json.dump(memory, f, ensure_ascii=False, indent=2)
 
-# Retourne toute la mémoire combinée (base + utilisateur)
 def get_memory():
     return base_memory + load_memory()
 
-# Fonction pour générer une réponse
 def repondre(question):
     question_lower = question.lower()
     for item in get_memory():
         if item["question"] in question_lower or question_lower in item["question"]:
             return item["answer"]
-    # Si inconnu, mémorise et répond génériquement
     answer = f"Je ne connais pas encore cette question, mais je m'en souviendrai !"
     save_memory_entry(question, answer)
     return answer
@@ -58,54 +52,94 @@ HTML = """
             background-image: url('https://tse4.mm.bing.net/th/id/OIP.Lq7aFYBXxxO5aSAeDK9jGgHaD4?cb=12&rs=1&pid=ImgDetMain&o=7&rm=3');
             background-size: cover;
             font-family: Arial, sans-serif;
-            color: white;
-            text-align: center;
+            display: flex;
+            justify-content: center;
             padding-top: 50px;
+            color: white;
+        }
+        .chat-container {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 20px;
+            border-radius: 15px;
+            width: 400px;
+            box-shadow: 0 0 10px black;
         }
         input[type=text] {
-            width: 300px;
+            width: 80%;
             padding: 10px;
-            margin: 10px;
+            margin: 10px 0;
+            border-radius: 20px;
+            border: none;
         }
         input[type=submit] {
             padding: 10px 20px;
+            border-radius: 20px;
+            border: none;
             cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
         }
-        p {
-            font-size: 18px;
+        .message {
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 20px;
+            max-width: 80%;
+            clear: both;
         }
-        form {
-            margin-bottom: 30px;
+        .user {
+            background-color: #87CEFA;
+            float: right;
+        }
+        .bot {
+            background-color: #90EE90;
+            float: left;
         }
         footer {
-            position: fixed;
-            bottom: 10px;
-            width: 100%;
             text-align: center;
             font-size: 14px;
             color: #fff;
+            margin-top: 20px;
+        }
+        .chat-box {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
-    <h1>Mon IA</h1>
-    <form method="POST">
-        <input name="question" placeholder="Pose ta question" required>
-        <input type="submit" value="Envoyer">
-    </form>
-    <p>{{ response }}</p>
-    <footer>Created by Jules Besson Vollaire</footer>
+    <div class="chat-container">
+        <h2>Mon IA</h2>
+        <div class="chat-box" id="chat-box">
+            {% for q, a in chat_history %}
+                <div class="message user">{{ q }}</div>
+                <div class="message bot">{{ a }}</div>
+            {% endfor %}
+        </div>
+        <form method="POST">
+            <input name="question" placeholder="Pose ta question" required>
+            <input type="submit" value="Envoyer">
+        </form>
+        <footer>Created by Jules Besson Vollaire</footer>
+    </div>
+    <script>
+        // Scroll automatique vers le dernier message
+        var chatBox = document.getElementById("chat-box");
+        chatBox.scrollTop = chatBox.scrollHeight;
+    </script>
 </body>
 </html>
 """
 
+chat_history = []
+
 @app.route("/", methods=["GET", "POST"])
 def home():
-    response = ""
     if request.method == "POST":
         question = request.form["question"]
-        response = repondre(question)
-    return render_template_string(HTML, response=response)
+        answer = repondre(question)
+        chat_history.append((question, answer))
+    return render_template_string(HTML, chat_history=chat_history)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
